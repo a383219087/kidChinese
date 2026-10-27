@@ -321,8 +321,11 @@ a {
 .char-glyph {
   width: min(42vw, 220px);
   height: min(42vw, 220px);
+  box-sizing: border-box;
   display: grid;
   place-items: center;
+  justify-self: center;
+  margin-inline: auto;
   border-radius: 28px;
   background:
     linear-gradient(#fff, #fff) padding-box,
@@ -334,10 +337,15 @@ a {
   box-shadow: var(--shadow);
 }
 
+/* 多音字等长拼音：边框随内容撑开，始终水平居中 */
 .char-glyph-py {
+  width: max-content;
+  max-width: min(92vw, 480px);
+  min-width: min(42vw, 220px);
   height: auto;
   min-height: min(42vw, 220px);
-  padding: 18px 12px 12px;
+  padding: 20px clamp(16px, 4vw, 32px) 16px;
+  letter-spacing: 0;
 }
 
 .py-ruby {
@@ -354,9 +362,16 @@ a {
   font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
 
+.char-glyph .py-ruby {
+  ruby-align: center;
+  text-align: center;
+}
+
 .char-glyph .py-ruby rt {
-  font-size: 0.28em;
-  margin-bottom: 0.15em;
+  font-size: clamp(0.85rem, 3.2vw, 1.25rem);
+  margin-bottom: 0.2em;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
 }
 
 .chip .py-ruby,
@@ -808,8 +823,17 @@ a {
   }
 
   .char-glyph-py {
+    width: max-content;
+    max-width: min(94vw, 360px);
+    min-width: min(34vw, 140px);
     min-height: min(34vw, 140px);
-    padding: 10px 8px 8px;
+    height: auto;
+    padding: 12px clamp(12px, 3.5vw, 22px) 10px;
+    margin-inline: auto;
+  }
+
+  .char-glyph .py-ruby rt {
+    font-size: clamp(0.72rem, 2.8vw, 1rem);
   }
 
   .section-block h3 {
