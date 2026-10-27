@@ -485,10 +485,24 @@ function withPinyin(text, enabled) {
   return out
 }
 
-function renderAssemblyBlock(assembly, { showPinyin = false, readOnly = false } = {}) {
+function renderRecommendSentences(sentences, { showPinyin = false } = {}) {
+  const list = (sentences || []).filter(Boolean).slice(0, 3)
+  if (!list.length) return ''
+  return `
+    <div class="section-block">
+      <h3>推荐造句</h3>
+      <div class="sentences">
+        ${list.map((s) => `<div class="sentence">${withPinyin(s, showPinyin)}</div>`).join('')}
+      </div>
+    </div>
+  `
+}
+
+function renderAssemblyBlock(assembly, { showPinyin = false, readOnly = false, recommendSentences = [] } = {}) {
   const parts = assembly?.parts || []
   if (!parts.length && !assembly?.picked?.length) {
-    return `<div class="section-block"><h3>造句</h3><div class="empty-inline">暂无造句</div></div>`
+    return renderRecommendSentences(recommendSentences, { showPinyin }) ||
+      `<div class="section-block"><h3>造句</h3><div class="empty-inline">暂无造句</div></div>`
   }
   if (readOnly) {
     const picked = assembly.picked?.length
@@ -499,6 +513,7 @@ function renderAssemblyBlock(assembly, { showPinyin = false, readOnly = false } 
         <h3>造句 · 点选记录</h3>
         <div class="assemble-board" aria-label="点选记录">${picked}</div>
       </div>
+      ${renderRecommendSentences(recommendSentences, { showPinyin })}
     `
   }
   const pickedHtml = assembly.picked.length
@@ -536,15 +551,12 @@ function renderCharCard(item, { showPinyin = false, assembly = null, assemblyRea
     ? `<div class="char-glyph char-glyph-py" aria-label="汉字">${withPinyinChar(item.char, true)}</div>`
     : `<div class="char-glyph" aria-label="汉字">${escapeHtml(item.char)}</div>`
   const sentenceBlock = assembly
-    ? renderAssemblyBlock(assembly, { showPinyin, readOnly: assemblyReadOnly })
-    : sentences.length
-      ? `<div class="section-block">
-        <h3>造句</h3>
-        <div class="sentences">
-          ${sentences.map((s) => `<div class="sentence">${withPinyin(s, showPinyin)}</div>`).join('')}
-        </div>
-      </div>`
-      : ''
+    ? renderAssemblyBlock(assembly, {
+        showPinyin,
+        readOnly: assemblyReadOnly,
+        recommendSentences: assemblyReadOnly ? sentences : [],
+      })
+    : renderRecommendSentences(sentences, { showPinyin }).replace('<h3>推荐造句</h3>', '<h3>造句</h3>')
   return `
     <div class="char-stage ${showPinyin ? 'show-pinyin' : ''}">
       ${glyph}
@@ -907,7 +919,11 @@ function renderHistoryDetail() {
           <span>${state.historyIndex + 1} / ${items.length}</span>
         </div>
       </div>
-      ${renderCharCard(item, { assembly, assemblyReadOnly: Boolean(assembly) })}
+      ${renderCharCard(item, {
+        showPinyin: state.showPinyin,
+        assembly,
+        assemblyReadOnly: Boolean(assembly),
+      })}
       <div class="exam-footer">
         <div class="rec-actions">
           <button type="button" class="btn text accent" data-action="history-play" ${item.audio ? '' : 'disabled'}>
