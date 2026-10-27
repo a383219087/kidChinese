@@ -683,14 +683,76 @@ function wordsFromCnchar(ch) {
   }
 }
 
-function fallbackWords(ch) {
-  const pool = [`小${ch}`, `${ch}子`, `${ch}儿`, `${ch}花`, `${ch}人`]
-  return pool.filter((w) => w.length >= 2)
+/** Real words that look like X儿 / X花 but are valid elementary vocabulary */
+const ALLOWED_SUFFIX_WORDS = new Set([
+  '花儿',
+  '鱼儿',
+  '鸟儿',
+  '歌儿',
+  '猫儿',
+  '狗儿',
+  '兔儿',
+  '马儿',
+  '牛儿',
+  '羊儿',
+  '莲花',
+  '桃花',
+  '梅花',
+  '菊花',
+  '荷花',
+  '雪花',
+  '火花',
+  '红花',
+  '黄花',
+  '鲜花',
+  '开花',
+  '棉花',
+  '浪花',
+  '菜花',
+  '桂花',
+  '樱花',
+  '采花',
+  '桌子',
+  '椅子',
+  '孩子',
+  '杯子',
+  '本子',
+  '爪子',
+  '日子',
+  '样子',
+  '房子',
+  '橘子',
+  '桃子',
+  '李子',
+  '种子',
+  '叶子',
+  '村子',
+  '镜子',
+  '帽子',
+  '鞋子',
+  '袜子',
+  '盘子',
+  '瓶子',
+  '箱子',
+  '绳子',
+  '蚊子',
+  '狮子',
+  '兔子',
+  '鸭子',
+])
+
+function fallbackWords() {
+  // Prefer empty over inventing X儿 / X花 / X子 filler words
+  return []
 }
 
 function isWeakWord(w, ch) {
-  if (w === ch + ch) return true
-  if (w === `大${ch}` || w === `好${ch}` || w === `小${ch}`) return true
+  if (!w || !ch) return true
+  if (w === ch + ch && !['爸爸', '妈妈', '哥哥', '弟弟', '姐姐', '妹妹', '叔叔', '人人', '天天'].includes(w)) {
+    return true
+  }
+  if (w === `大${ch}` || w === `好${ch}` || w === `小${ch}` || w === `${ch}人`) return true
+  if ((w === `${ch}儿` || w === `${ch}花` || w === `${ch}子`) && !ALLOWED_SUFFIX_WORDS.has(w)) return true
   return false
 }
 
@@ -742,17 +804,26 @@ function main() {
     )
     for (const w of ranked) {
       if (!w || merged.includes(w) || !w.includes(ch) || w.length < 2 || w.length > 4) continue
-      if (isWeakWord(w, ch) && merged.length >= 2) continue
+      if (isWeakWord(w, ch)) continue
       merged.push(w)
     }
 
-    // at least 2, prefer up to 5
+    // at least 2 when possible, prefer up to 5; never pad with X儿/X花
     const n = Math.min(5, Math.max(2, 2 + (seed % 4)))
     let words = merged.slice(0, n)
     while (words.length < 2) {
-      const extra = fallbackWords(ch).find((w) => !words.includes(w))
+      const extra = fallbackWords(ch).find((w) => !words.includes(w) && !isWeakWord(w, ch))
       if (!extra) break
       words.push(extra)
+    }
+    // keep previously curated real words if still short
+    if (words.length < 2 && Array.isArray(item.words)) {
+      for (const w of item.words) {
+        if (words.length >= 2) break
+        if (!w || words.includes(w) || isWeakWord(w, ch) || !w.includes(ch)) continue
+        if (w.length < 2 || w.length > 4) continue
+        words.push(w)
+      }
     }
     if (words.length < 2) weakWords += 1
 

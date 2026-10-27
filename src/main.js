@@ -1,6 +1,6 @@
 import './style.css'
 import characters from './data/characters.json'
-import pinyinMap from './data/pinyin.json'
+import { pinyin } from 'pinyin-pro'
 import { VoiceRecorder } from './recorder.js'
 import { saveExam, listExams, getExam, blobToDataUrl } from './storage.js'
 
@@ -71,23 +71,37 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
 }
 
-function pyOf(ch) {
-  return pinyinMap[ch] || ''
+function isHan(ch) {
+  return ch >= '\u4e00' && ch <= '\u9fff'
 }
 
-/** Annotate Chinese characters with pinyin ruby when enabled. */
+function rubyOf(ch, py) {
+  if (!py || !isHan(ch)) return escapeHtml(ch)
+  return `<ruby class="py-ruby">${escapeHtml(ch)}<rp>(</rp><rt>${escapeHtml(py)}</rt><rp>)</rp></ruby>`
+}
+
+/** Single-character pinyin: show all common readings for polyphones (e.g. 长 → cháng/zhǎng). */
+function withPinyinChar(ch, enabled) {
+  if (!enabled) return escapeHtml(ch)
+  const readings = pinyin(ch, { toneType: 'symbol', type: 'array', multiple: true })
+  const py = Array.isArray(readings) ? [...new Set(readings)].join('/') : String(readings || '')
+  return rubyOf(ch, py)
+}
+
+/**
+ * Phrase/sentence pinyin: context-aware, so 长大→zhǎng、长度→cháng.
+ */
 function withPinyin(text, enabled) {
   const raw = String(text ?? '')
   if (!enabled) return escapeHtml(raw)
+  const chars = [...raw]
+  const pys = pinyin(raw, { toneType: 'symbol', type: 'array' })
   let out = ''
-  for (const ch of raw) {
-    if (ch >= '\u4e00' && ch <= '\u9fff') {
-      const py = pyOf(ch)
-      if (py) {
-        out += `<ruby class="py-ruby">${escapeHtml(ch)}<rp>(</rp><rt>${escapeHtml(py)}</rt><rp>)</rp></ruby>`
-      } else {
-        out += escapeHtml(ch)
-      }
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]
+    const py = pys[i]
+    if (isHan(ch) && py && py !== ch) {
+      out += rubyOf(ch, py)
     } else {
       out += escapeHtml(ch)
     }
@@ -99,7 +113,7 @@ function renderCharCard(item, { showPinyin = false } = {}) {
   const words = (item.words || []).slice(0, 5)
   const sentences = (item.sentences || []).slice(0, 3)
   const glyph = showPinyin
-    ? `<div class="char-glyph char-glyph-py" aria-label="汉字">${withPinyin(item.char, true)}</div>`
+    ? `<div class="char-glyph char-glyph-py" aria-label="汉字">${withPinyinChar(item.char, true)}</div>`
     : `<div class="char-glyph" aria-label="汉字">${escapeHtml(item.char)}</div>`
   return `
     <div class="char-stage ${showPinyin ? 'show-pinyin' : ''}">
@@ -133,7 +147,7 @@ function shell(content) {
       <aside class="sidebar">
         <div class="brand">
           <h1>认字乐园</h1>
-          <p>一年级识字练习</p>
+          <p class="brand-sub">一年级识字练习</p>
         </div>
         <nav class="nav">
           <button class="nav-btn ${state.view === 'home' ? 'active' : ''}" data-nav="home">主页</button>
@@ -152,20 +166,22 @@ function renderHome() {
   const total = state.homeOrder.length
   const html = `
     <section class="panel">
-      <div class="panel-head">
-        <h2>主页认字</h2>
-        <div class="meta">${total ? state.homeIndex + 1 : 0} / ${total}</div>
-      </div>
-      <div class="home-toolbar">
-        <div class="term-tabs" role="tablist" aria-label="册次">
-          <button type="button" class="term-tab ${state.homeTerm === '一上' ? 'active' : ''}" data-action="home-term" data-term="一上" role="tab" aria-selected="${state.homeTerm === '一上'}">一上</button>
-          <button type="button" class="term-tab ${state.homeTerm === '一下' ? 'active' : ''}" data-action="home-term" data-term="一下" role="tab" aria-selected="${state.homeTerm === '一下'}">一下</button>
+      <div class="panel-head home-head">
+        <div class="head-left">
+          <h2>主页认字</h2>
+          <span class="meta">${total ? state.homeIndex + 1 : 0}/${total}</span>
         </div>
-        <label class="pinyin-switch">
-          <input type="checkbox" data-action="toggle-pinyin" ${state.showPinyin ? 'checked' : ''} />
-          <span class="switch-ui" aria-hidden="true"></span>
-          <span>显示拼音</span>
-        </label>
+        <div class="home-toolbar">
+          <div class="term-tabs" role="tablist" aria-label="册次">
+            <button type="button" class="term-tab ${state.homeTerm === '一上' ? 'active' : ''}" data-action="home-term" data-term="一上" role="tab" aria-selected="${state.homeTerm === '一上'}">一上</button>
+            <button type="button" class="term-tab ${state.homeTerm === '一下' ? 'active' : ''}" data-action="home-term" data-term="一下" role="tab" aria-selected="${state.homeTerm === '一下'}">一下</button>
+          </div>
+          <label class="pinyin-switch">
+            <input type="checkbox" data-action="toggle-pinyin" ${state.showPinyin ? 'checked' : ''} />
+            <span class="switch-ui" aria-hidden="true"></span>
+            <span>拼音</span>
+          </label>
+        </div>
       </div>
       ${item ? renderCharCard(item, { showPinyin: state.showPinyin }) : '<div class="empty">该册暂无汉字</div>'}
       <div class="pager">
@@ -258,26 +274,31 @@ function renderExam() {
     <section class="panel">
       <div class="panel-head">
         <h2>练习 · ${state.examTerm}</h2>
-        <div class="meta">第 ${state.examIndex + 1} / ${state.examItems.length} 题 · 不评分</div>
+        <div class="meta">${state.examIndex + 1}/${state.examItems.length}</div>
       </div>
       ${renderCharCard(item)}
-      <div class="recorder-bar">
-        ${state.recording ? '<span class="rec-dot" aria-hidden="true"></span>' : ''}
-        <span class="meta">${state.recording ? '正在录音…' : hasAudio ? '已录音（可重录）' : '请朗读并录音'}</span>
-        ${
-          state.recording
-            ? `<button class="btn danger" data-action="exam-stop-rec">停止录音</button>`
-            : `<button class="btn accent" data-action="exam-start-rec">开始录音</button>`
-        }
-        ${hasAudio && !state.recording ? `<button class="btn ghost" data-action="exam-play-rec">试听</button>` : ''}
-      </div>
-      <div class="pager">
-        <button class="btn ghost" data-action="exam-prev" ${state.examIndex === 0 || state.recording ? 'disabled' : ''}>上一个</button>
-        ${
-          isLast
-            ? `<button class="btn" data-action="exam-finish" ${state.recording ? 'disabled' : ''}>完成练习</button>`
-            : `<button class="btn" data-action="exam-next" ${state.recording ? 'disabled' : ''}>下一个</button>`
-        }
+      <div class="exam-footer">
+        <div class="rec-actions">
+          ${state.recording ? '<span class="rec-dot" aria-hidden="true"></span><span class="meta">录音中</span>' : ''}
+          ${
+            state.recording
+              ? `<button type="button" class="btn text danger" data-action="exam-stop-rec">停止录音</button>`
+              : `<button type="button" class="btn text accent" data-action="exam-start-rec">开始录音</button>`
+          }
+          ${
+            hasAudio && !state.recording
+              ? `<button type="button" class="btn text" data-action="exam-play-rec">播放录音</button>`
+              : ''
+          }
+        </div>
+        <div class="nav-actions">
+          <button class="btn ghost" data-action="exam-prev" ${state.examIndex === 0 || state.recording ? 'disabled' : ''}>上一个</button>
+          ${
+            isLast
+              ? `<button class="btn" data-action="exam-finish" ${state.recording ? 'disabled' : ''}>完成练习</button>`
+              : `<button class="btn" data-action="exam-next" ${state.recording ? 'disabled' : ''}>下一个</button>`
+          }
+        </div>
       </div>
     </section>
   `
@@ -335,14 +356,16 @@ function renderHistoryDetail() {
         </div>
       </div>
       ${renderCharCard(item)}
-      <div class="recorder-bar">
-        <button class="btn accent" data-action="history-play" ${item.audio ? '' : 'disabled'}>
-          ${item.audio ? '播放录音' : '无录音'}
-        </button>
-      </div>
-      <div class="pager">
-        <button class="btn ghost" data-action="history-prev" ${state.historyIndex === 0 ? 'disabled' : ''}>上一个</button>
-        <button class="btn" data-action="history-next" ${state.historyIndex >= items.length - 1 ? 'disabled' : ''}>下一个</button>
+      <div class="exam-footer">
+        <div class="rec-actions">
+          <button type="button" class="btn text accent" data-action="history-play" ${item.audio ? '' : 'disabled'}>
+            ${item.audio ? '播放录音' : '无录音'}
+          </button>
+        </div>
+        <div class="nav-actions">
+          <button class="btn ghost" data-action="history-prev" ${state.historyIndex === 0 ? 'disabled' : ''}>上一个</button>
+          <button class="btn" data-action="history-next" ${state.historyIndex >= items.length - 1 ? 'disabled' : ''}>下一个</button>
+        </div>
       </div>
     </section>
   `

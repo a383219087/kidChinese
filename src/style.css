@@ -32,6 +32,7 @@ body,
   margin: 0;
   min-height: 100%;
   height: 100%;
+  height: 100dvh;
 }
 
 body {
@@ -72,7 +73,7 @@ a {
   letter-spacing: 0.04em;
 }
 
-.brand p {
+.brand-sub {
   margin: 8px 0 0;
   opacity: 0.72;
   font-size: 0.9rem;
@@ -127,22 +128,38 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .panel-head h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.home-head {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 8px;
+}
+
+.head-left {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .home-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  margin-left: auto;
 }
 
 .term-tabs {
@@ -411,6 +428,30 @@ a {
   gap: 10px;
 }
 
+.exam-footer {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  z-index: 2;
+  background: transparent;
+}
+
+.rec-actions,
+.nav-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: transparent;
+}
+
 .btn {
   appearance: none;
   border: 0;
@@ -419,7 +460,7 @@ a {
   cursor: pointer;
   background: var(--brand);
   color: #fff;
-  transition: transform 0.12s ease, background 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.12s ease, background 0.2s ease, opacity 0.2s ease, color 0.2s ease;
 }
 
 .btn:hover {
@@ -450,18 +491,42 @@ a {
   background: var(--danger);
 }
 
+.btn.text {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--brand-dark);
+  padding: 10px 8px;
+  font-weight: 600;
+}
+
+.btn.text:hover {
+  background: transparent;
+  color: var(--brand);
+}
+
+.btn.text.accent {
+  background: transparent;
+  color: #c48400;
+}
+
+.btn.text.accent:hover {
+  background: transparent;
+  color: #a56d00;
+}
+
+.btn.text.danger {
+  background: transparent;
+  color: var(--danger);
+}
+
+.btn.text.danger:hover {
+  background: transparent;
+  color: #b53636;
+}
+
 .recorder-bar {
-  width: min(100%, 560px);
-  margin-top: 8px;
-  padding: 16px;
-  border-radius: 16px;
-  background: #f4faf7;
-  border: 1px solid var(--line);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
+  display: none;
 }
 
 .rec-dot {
@@ -543,32 +608,176 @@ a {
   .app-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .sidebar {
-    padding: 16px;
-    gap: 16px;
+    padding: 8px 10px;
+    gap: 8px;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .brand {
+    padding: 0 4px;
+    flex: 0 0 auto;
+  }
+
+  .brand h1 {
+    font-size: 1rem;
+  }
+
+  .brand-sub {
+    display: none;
   }
 
   .nav {
     flex-direction: row;
     overflow-x: auto;
+    gap: 4px;
+    flex: 1;
+    justify-content: flex-end;
   }
 
   .nav-btn {
     white-space: nowrap;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 0.92rem;
   }
 
   .main {
-    padding: 16px;
+    padding: 8px;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
   }
 
   .panel {
-    padding: 18px;
+    padding: 10px 12px 64px;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 14px;
+  }
+
+  .panel-head {
+    margin-bottom: 6px;
+    gap: 6px;
+  }
+
+  .panel-head h2 {
+    font-size: 1rem;
+  }
+
+  .home-head {
+    gap: 6px;
+  }
+
+  .home-toolbar {
+    gap: 6px;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
+  .term-tabs {
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .term-tab {
+    padding: 5px 12px;
+    font-size: 0.9rem;
+  }
+
+  .pinyin-switch {
+    gap: 6px;
+    font-size: 0.85rem;
+  }
+
+  .pinyin-switch .switch-ui {
+    width: 38px;
+    height: 22px;
+  }
+
+  .pinyin-switch .switch-ui::after {
+    width: 16px;
+    height: 16px;
+  }
+
+  .pinyin-switch input:checked + .switch-ui::after {
+    transform: translateX(16px);
+  }
+
+  .char-stage {
+    gap: 10px;
+    padding: 4px 0 8px;
+    justify-content: flex-start;
+    overflow: auto;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .char-glyph {
+    width: min(34vw, 140px);
+    height: min(34vw, 140px);
+    border-radius: 18px;
+    font-size: clamp(2.8rem, 12vw, 4.2rem);
+    flex-shrink: 0;
+  }
+
+  .char-glyph-py {
+    min-height: min(34vw, 140px);
+    padding: 10px 8px 8px;
+  }
+
+  .section-block h3 {
+    margin: 0 0 6px;
+    font-size: 0.85rem;
+  }
+
+  .chip {
+    padding: 5px 10px;
+    font-size: 0.95rem;
+  }
+
+  .chips {
+    gap: 6px;
+  }
+
+  .sentence {
+    padding: 8px 10px;
+    font-size: 0.92rem;
+  }
+
+  .sentences {
+    gap: 6px;
+  }
+
+  .meta {
+    font-size: 0.85rem;
+  }
+
+  .btn {
+    padding: 10px 14px;
+    border-radius: 10px;
   }
 
   .pager {
-    right: 16px;
-    bottom: 16px;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .exam-footer {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .empty {
+    padding: 24px 8px;
   }
 }
