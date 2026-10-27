@@ -4,3 +4,5 @@ dist
 *.local
 .env
 .env.*
+scripts/raw/*.json
+scripts/raw/*.tsv

@@ -1,13 +1,35 @@
 import './style.css'
 import characters from './data/characters.json'
+import pinyinMap from './data/pinyin.json'
 import { VoiceRecorder } from './recorder.js'
 import { saveExam, listExams, getExam, blobToDataUrl } from './storage.js'
 
 const EXAM_SIZE = 20
+const PINYIN_KEY = 'kidChinese.showPinyin'
+
+function byTerm(term) {
+  return characters.filter((c) => c.term === term)
+}
+
+function makeHomeOrder(term) {
+  return shuffle(byTerm(term))
+}
+
+function loadShowPinyin() {
+  try {
+    return localStorage.getItem(PINYIN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 const state = {
   view: 'home', // home | exam | history | historyDetail
-  homeOrder: shuffle([...characters]),
+  homeTerm: '一上',
+  homeOrder: makeHomeOrder('一上'),
   homeIndex: 0,
+  showPinyin: loadShowPinyin(),
+  examTerm: null, // null = pick 一上/一下 first
   examItems: [],
   examIndex: 0,
   examAudios: {}, // index -> dataUrl
@@ -41,24 +63,66 @@ function currentHomeChar() {
   return state.homeOrder[state.homeIndex]
 }
 
-function renderCharCard(item) {
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function pyOf(ch) {
+  return pinyinMap[ch] || ''
+}
+
+/** Annotate Chinese characters with pinyin ruby when enabled. */
+function withPinyin(text, enabled) {
+  const raw = String(text ?? '')
+  if (!enabled) return escapeHtml(raw)
+  let out = ''
+  for (const ch of raw) {
+    if (ch >= '\u4e00' && ch <= '\u9fff') {
+      const py = pyOf(ch)
+      if (py) {
+        out += `<ruby class="py-ruby">${escapeHtml(ch)}<rp>(</rp><rt>${escapeHtml(py)}</rt><rp>)</rp></ruby>`
+      } else {
+        out += escapeHtml(ch)
+      }
+    } else {
+      out += escapeHtml(ch)
+    }
+  }
+  return out
+}
+
+function renderCharCard(item, { showPinyin = false } = {}) {
   const words = (item.words || []).slice(0, 5)
   const sentences = (item.sentences || []).slice(0, 3)
+  const glyph = showPinyin
+    ? `<div class="char-glyph char-glyph-py" aria-label="汉字">${withPinyin(item.char, true)}</div>`
+    : `<div class="char-glyph" aria-label="汉字">${escapeHtml(item.char)}</div>`
   return `
-    <div class="char-stage">
-      <div class="char-glyph" aria-label="汉字">${item.char}</div>
+    <div class="char-stage ${showPinyin ? 'show-pinyin' : ''}">
+      ${glyph}
       <div class="section-block">
         <h3>组词</h3>
         <div class="chips">
-          ${words.map((w) => `<span class="chip">${w}</span>`).join('') || '<span class="chip">暂无</span>'}
+          ${
+            words.map((w) => `<span class="chip">${withPinyin(w, showPinyin)}</span>`).join('') ||
+            '<span class="chip">暂无</span>'
+          }
         </div>
       </div>
-      <div class="section-block">
+      ${
+        sentences.length
+          ? `<div class="section-block">
         <h3>造句</h3>
         <div class="sentences">
-          ${sentences.map((s) => `<div class="sentence">${s}</div>`).join('') || '<div class="sentence">暂无</div>'}
+          ${sentences.map((s) => `<div class="sentence">${withPinyin(s, showPinyin)}</div>`).join('')}
         </div>
-      </div>
+      </div>`
+          : ''
+      }
     </div>
   `
 }
@@ -73,7 +137,7 @@ function shell(content) {
         </div>
         <nav class="nav">
           <button class="nav-btn ${state.view === 'home' ? 'active' : ''}" data-nav="home">主页</button>
-          <button class="nav-btn ${state.view === 'exam' ? 'active' : ''}" data-nav="exam">考试</button>
+          <button class="nav-btn ${state.view === 'exam' ? 'active' : ''}" data-nav="exam">练习</button>
           <button class="nav-btn ${state.view === 'history' || state.view === 'historyDetail' ? 'active' : ''}" data-nav="history">历史记录</button>
         </nav>
       </aside>
@@ -85,16 +149,28 @@ function shell(content) {
 
 function renderHome() {
   const item = currentHomeChar()
+  const total = state.homeOrder.length
   const html = `
     <section class="panel">
       <div class="panel-head">
         <h2>主页认字</h2>
-        <div class="meta">${state.homeIndex + 1} / ${state.homeOrder.length}</div>
+        <div class="meta">${total ? state.homeIndex + 1 : 0} / ${total}</div>
       </div>
-      ${renderCharCard(item)}
+      <div class="home-toolbar">
+        <div class="term-tabs" role="tablist" aria-label="册次">
+          <button type="button" class="term-tab ${state.homeTerm === '一上' ? 'active' : ''}" data-action="home-term" data-term="一上" role="tab" aria-selected="${state.homeTerm === '一上'}">一上</button>
+          <button type="button" class="term-tab ${state.homeTerm === '一下' ? 'active' : ''}" data-action="home-term" data-term="一下" role="tab" aria-selected="${state.homeTerm === '一下'}">一下</button>
+        </div>
+        <label class="pinyin-switch">
+          <input type="checkbox" data-action="toggle-pinyin" ${state.showPinyin ? 'checked' : ''} />
+          <span class="switch-ui" aria-hidden="true"></span>
+          <span>显示拼音</span>
+        </label>
+      </div>
+      ${item ? renderCharCard(item, { showPinyin: state.showPinyin }) : '<div class="empty">该册暂无汉字</div>'}
       <div class="pager">
-        <button class="btn ghost" data-action="home-prev" ${state.homeIndex === 0 ? 'disabled' : ''}>上一个</button>
-        <button class="btn" data-action="home-next" ${state.homeIndex >= state.homeOrder.length - 1 ? 'disabled' : ''}>下一个</button>
+        <button class="btn ghost" data-action="home-prev" ${state.homeIndex === 0 || !total ? 'disabled' : ''}>上一个</button>
+        <button class="btn" data-action="home-next" ${state.homeIndex >= total - 1 || !total ? 'disabled' : ''}>下一个</button>
       </div>
     </section>
   `
@@ -102,12 +178,12 @@ function renderHome() {
   bindCommon()
 }
 
-function ensureExam() {
-  if (!state.examItems.length) {
-    state.examItems = shuffle(characters).slice(0, Math.min(EXAM_SIZE, characters.length))
-    state.examIndex = 0
-    state.examAudios = {}
-  }
+function startExam(term) {
+  const pool = byTerm(term)
+  state.examTerm = term
+  state.examItems = shuffle(pool).slice(0, Math.min(EXAM_SIZE, pool.length))
+  state.examIndex = 0
+  state.examAudios = {}
 }
 
 async function finishExam() {
@@ -119,10 +195,12 @@ async function finishExam() {
     }
   }
   const id = `exam_${Date.now()}`
+  const termLabel = state.examTerm || ''
   const exam = {
     id,
     createdAt: Date.now(),
-    title: `考试 ${new Date().toLocaleString('zh-CN')}`,
+    term: state.examTerm,
+    title: `练习${termLabel ? `·${termLabel}` : ''} ${new Date().toLocaleString('zh-CN')}`,
     items: state.examItems.map((item, i) => ({
       char: item.char,
       words: item.words,
@@ -131,23 +209,55 @@ async function finishExam() {
     })),
   }
   await saveExam(exam)
+  state.examTerm = null
   state.examItems = []
   state.examIndex = 0
   state.examAudios = {}
-  toast('考试已保存到历史记录')
+  toast('练习已保存到历史记录')
   state.view = 'history'
   render()
 }
 
+function renderExamPick() {
+  const countShang = byTerm('一上').length
+  const countXia = byTerm('一下').length
+  const html = `
+    <section class="panel">
+      <div class="panel-head">
+        <h2>练习</h2>
+        <div class="meta">随机 ${EXAM_SIZE} 个字 · 不评分</div>
+      </div>
+      <div class="exam-pick">
+        <p class="exam-pick-tip">请先选择要练习的册次</p>
+        <div class="exam-pick-cards">
+          <button type="button" class="exam-pick-card" data-action="exam-start" data-term="一上">
+            <strong>一上</strong>
+            <span>共 ${countShang} 字</span>
+          </button>
+          <button type="button" class="exam-pick-card" data-action="exam-start" data-term="一下">
+            <strong>一下</strong>
+            <span>共 ${countXia} 字</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  `
+  document.querySelector('#app').innerHTML = shell(html)
+  bindCommon()
+}
+
 function renderExam() {
-  ensureExam()
+  if (!state.examTerm || !state.examItems.length) {
+    renderExamPick()
+    return
+  }
   const item = state.examItems[state.examIndex]
   const hasAudio = Boolean(state.examAudios[state.examIndex])
   const isLast = state.examIndex >= state.examItems.length - 1
   const html = `
     <section class="panel">
       <div class="panel-head">
-        <h2>考试</h2>
+        <h2>练习 · ${state.examTerm}</h2>
         <div class="meta">第 ${state.examIndex + 1} / ${state.examItems.length} 题 · 不评分</div>
       </div>
       ${renderCharCard(item)}
@@ -165,7 +275,7 @@ function renderExam() {
         <button class="btn ghost" data-action="exam-prev" ${state.examIndex === 0 || state.recording ? 'disabled' : ''}>上一个</button>
         ${
           isLast
-            ? `<button class="btn" data-action="exam-finish" ${state.recording ? 'disabled' : ''}>完成考试</button>`
+            ? `<button class="btn" data-action="exam-finish" ${state.recording ? 'disabled' : ''}>完成练习</button>`
             : `<button class="btn" data-action="exam-next" ${state.recording ? 'disabled' : ''}>下一个</button>`
         }
       </div>
@@ -184,7 +294,7 @@ async function renderHistory() {
             (e) => `
           <button class="history-item" data-action="open-history" data-id="${e.id}">
             <div>
-              <strong>${e.title || '考试记录'}</strong>
+              <strong>${e.title || '练习记录'}</strong>
               <span class="meta">${e.items?.length || 0} 个字 · ${new Date(e.createdAt).toLocaleString('zh-CN')}</span>
             </div>
             <span class="meta">查看</span>
@@ -192,7 +302,7 @@ async function renderHistory() {
           )
           .join('')}
       </div>`
-    : `<div class="empty">还没有考试记录，先去「考试」完成一次吧。</div>`
+    : `<div class="empty">还没有练习记录，先去「练习」完成一次吧。</div>`
 
   const html = `
     <section class="panel">
@@ -218,7 +328,7 @@ function renderHistoryDetail() {
   const html = `
     <section class="panel">
       <div class="panel-head">
-        <h2>考试详情</h2>
+        <h2>练习详情</h2>
         <div class="meta">
           <button class="btn ghost" data-action="back-history">返回列表</button>
           <span>${state.historyIndex + 1} / ${items.length}</span>
@@ -249,6 +359,7 @@ function bindCommon() {
       }
       const next = btn.dataset.nav
       if (next === 'exam') {
+        state.examTerm = null
         state.examItems = []
         state.examIndex = 0
         state.examAudios = {}
@@ -258,14 +369,34 @@ function bindCommon() {
     })
   })
 
-  document.querySelectorAll('[data-action]').forEach((btn) => {
-    btn.addEventListener('click', onAction)
+  document.querySelectorAll('[data-action]').forEach((el) => {
+    const eventName = el.matches('input[type="checkbox"]') ? 'change' : 'click'
+    el.addEventListener(eventName, onAction)
   })
 }
 
 async function onAction(e) {
   const action = e.currentTarget.dataset.action
   switch (action) {
+    case 'home-term': {
+      const term = e.currentTarget.dataset.term
+      if (!term || term === state.homeTerm) break
+      state.homeTerm = term
+      state.homeOrder = makeHomeOrder(term)
+      state.homeIndex = 0
+      renderHome()
+      break
+    }
+    case 'toggle-pinyin': {
+      state.showPinyin = Boolean(e.currentTarget.checked)
+      try {
+        localStorage.setItem(PINYIN_KEY, state.showPinyin ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      renderHome()
+      break
+    }
     case 'home-prev':
       if (state.homeIndex > 0) state.homeIndex -= 1
       renderHome()
@@ -274,6 +405,13 @@ async function onAction(e) {
       if (state.homeIndex < state.homeOrder.length - 1) state.homeIndex += 1
       renderHome()
       break
+    case 'exam-start': {
+      const term = e.currentTarget.dataset.term
+      if (term !== '一上' && term !== '一下') break
+      startExam(term)
+      renderExam()
+      break
+    }
     case 'exam-prev':
       if (state.examIndex > 0) state.examIndex -= 1
       renderExam()

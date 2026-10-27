@@ -4,9 +4,11 @@ import re, json, random, hashlib, os
 
 path = "/Users/cqj/Downloads/1_1·6识字文字版.pdf"
 reader = PdfReader(path)
-chars = []
+chars = []  # list of (char, term)
 seen = set()
 for i, page in enumerate(reader.pages[:12]):
+    # pages 1-5 => 一上, pages 6-12 => 一下
+    term = "一上" if i < 5 else "一下"
     text = page.extract_text() or ""
     text = text.strip()
     text = re.sub(r"^一\s*上\s*", "", text)
@@ -16,8 +18,9 @@ for i, page in enumerate(reader.pages[:12]):
         if "\u4e00" <= ch <= "\u9fff":
             if ch not in seen:
                 seen.add(ch)
-                chars.append(ch)
+                chars.append((ch, term))
 print("unique", len(chars))
+print("一上", sum(1 for _, t in chars if t == "一上"), "一下", sum(1 for _, t in chars if t == "一下"))
 
 WORD_BANK = """
 天地 人们 你们 我们 他们 一人 二人 三天 四季 五个 上下 口耳 耳目 手足 站立 坐下 日出 月亮 山水 山川 河水 大火 水田 禾苗 六一 七月 八月 九月 十月 爸爸 妈妈 大人 大马 马路 土地 书本 学习 学校 班级 姓名 大王 哥哥 弟弟 画画 花朵 打球 下棋 积木 写字 词语 句子 桌子 白纸 读书 看书 鱼儿 鸭子 乌鸦 中午 星星 星期 语文 数学 写字 开会 白菜 西瓜 水果 小鸟 小桥 流水 杨柳 开花 下雪 夜晚 夜色 美丽 蓝色 白云 青草 草原 冰雪 自己 自行车 晚上 昨天 今天 明天 这个 那个 去年 秋天 天气 叶子 树叶 黄色 一片 从来 飞来 江南 采莲 莲花 游戏 中间 东北 的家 家里 公鸡 母鸡 竹子 牙齿 用力 几步 没有 参加 鸟儿 说话 是的 春天 青草 青蛙 夏天 着火 皮球 地方 就是 冬天 男女 关心 正在 反正 先后 内外 对面 唱歌 下雨 大风 虫子 清水 绿色 桃花 红色 力量 尖刀 灰尘 众人 双手 树林 森林 不要 一条 开心 金子 书包 尺子 作业 铅笔 小刀 宝贝 少年 上课 早上 升起 国旗 中国 我们 声音 起来 多么 向上 站立 老师 工人 工厂 医院 医生 大门 门卫 小船 弯儿 两头 在家 里面 看见 闪电 影子 前面 常常 黑狗 左右 它的 好人 朋友 一件 有的 和平 做事 也是 办法 到了 又是 才能 爷爷 奶奶 叔叔 姐姐 妹妹 比较 尾巴 谁家 长短 一把 雨伞 兔子 最爱 公鸡 喝水 一只 到处 找到 许愿 石头 出去 办法 放学 进去 高兴 点数 彩色 一半 空气 问问 回答 方向 好久 更加 长长 牛羊 爪子 元旦 拼音
@@ -53,7 +56,7 @@ SENTENCE_TEMPLATES = [
 ]
 
 entries = []
-for c in chars:
+for c, term in chars:
     related = [w for w in words_all if c in w]
     seed = int(hashlib.md5(c.encode()).hexdigest()[:8], 16)
     rng = random.Random(seed)
@@ -71,7 +74,7 @@ for c in chars:
         tpl = SENTENCE_TEMPLATES[(seed + i) % len(SENTENCE_TEMPLATES)]
         w = picked_words[i % len(picked_words)]
         sents.append(tpl.format(c=c, w=w))
-    entries.append({"char": c, "words": picked_words, "sentences": sents})
+    entries.append({"char": c, "term": term, "words": picked_words, "sentences": sents})
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(root, "src", "data", "characters.json")

@@ -136,6 +136,155 @@ a {
   font-size: 1.25rem;
 }
 
+.home-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.term-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 4px;
+  background: #eef5f0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.pinyin-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.pinyin-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.pinyin-switch .switch-ui {
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: #c9d8d0;
+  position: relative;
+  transition: background 0.2s ease;
+  flex: 0 0 auto;
+}
+
+.pinyin-switch .switch-ui::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease;
+}
+
+.pinyin-switch input:checked + .switch-ui {
+  background: var(--brand);
+}
+
+.pinyin-switch input:checked + .switch-ui::after {
+  transform: translateX(18px);
+}
+
+.pinyin-switch input:focus-visible + .switch-ui {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.term-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.term-tab:hover {
+  color: var(--ink);
+}
+
+.term-tab.active {
+  background: #fff;
+  color: var(--brand-dark);
+  box-shadow: 0 1px 4px rgba(31, 61, 50, 0.1);
+}
+
+.exam-pick {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px 8px 48px;
+  text-align: center;
+}
+
+.exam-pick-tip {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.exam-pick-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 200px));
+  gap: 16px;
+  width: min(100%, 440px);
+}
+
+.exam-pick-card {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: #f7fbf8;
+  border-radius: 18px;
+  padding: 28px 18px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.12s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.exam-pick-card:hover {
+  border-color: #b7d4c4;
+  background: #eef8f2;
+  transform: translateY(-2px);
+}
+
+.exam-pick-card strong {
+  font-size: 1.8rem;
+  color: var(--brand-dark);
+}
+
+.exam-pick-card span {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .meta {
   color: var(--muted);
   font-size: 0.95rem;
@@ -166,6 +315,52 @@ a {
   font-weight: 700;
   letter-spacing: 0.08em;
   box-shadow: var(--shadow);
+}
+
+.char-glyph-py {
+  height: auto;
+  min-height: min(42vw, 220px);
+  padding: 18px 12px 12px;
+}
+
+.py-ruby {
+  ruby-align: center;
+  ruby-position: over;
+}
+
+.py-ruby rt {
+  font-size: 0.32em;
+  font-weight: 600;
+  color: var(--brand-dark);
+  letter-spacing: 0;
+  line-height: 1.1;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+.char-glyph .py-ruby rt {
+  font-size: 0.28em;
+  margin-bottom: 0.15em;
+}
+
+.chip .py-ruby,
+.sentence .py-ruby {
+  margin: 0 1px;
+}
+
+.chip .py-ruby rt,
+.sentence .py-ruby rt {
+  font-size: 0.75em;
+  color: var(--muted);
+}
+
+.show-pinyin .chip {
+  line-height: 1.7;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.show-pinyin .sentence {
+  line-height: 2;
 }
 
 .section-block {
