@@ -6,3 +6,5 @@ dist
 .env.*
 scripts/raw/*.json
 scripts/raw/*.tsv
+.idea
+.github

@@ -6,6 +6,7 @@ import { saveExam, listExams, getExam, blobToDataUrl } from './storage.js'
 
 const EXAM_SIZE = 20
 const PINYIN_KEY = 'kidChinese.showPinyin'
+const PRACTICED_KEY = 'kidChinese.practicedByTerm'
 
 function byTerm(term) {
   return characters.filter((c) => c.term === term)
@@ -23,6 +24,255 @@ function loadShowPinyin() {
   }
 }
 
+function loadPracticed(term) {
+  try {
+    const all = JSON.parse(localStorage.getItem(PRACTICED_KEY) || '{}')
+    return new Set(Array.isArray(all[term]) ? all[term] : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function savePracticed(term, set) {
+  try {
+    const all = JSON.parse(localStorage.getItem(PRACTICED_KEY) || '{}')
+    all[term] = [...set]
+    localStorage.setItem(PRACTICED_KEY, JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Common kid/function words for sentence segmentation. */
+const SEGMENT_DICT = [
+  '小朋友',
+  '同学们',
+  '操场上',
+  '教室里',
+  '公园里',
+  '星期六',
+  '星期天',
+  '一年级',
+  '红领巾',
+  '开满塘',
+  '爸爸',
+  '妈妈',
+  '哥哥',
+  '弟弟',
+  '姐姐',
+  '妹妹',
+  '爷爷',
+  '奶奶',
+  '老师',
+  '同学',
+  '我们',
+  '你们',
+  '他们',
+  '她们',
+  '今天',
+  '明天',
+  '昨天',
+  '上午',
+  '下午',
+  '天气',
+  '一起',
+  '喜欢',
+  '看见',
+  '认识',
+  '学会',
+  '上学',
+  '放学',
+  '回家',
+  '走路',
+  '跑步',
+  '画画',
+  '读书',
+  '写字',
+  '唱歌',
+  '游戏',
+  '公园',
+  '学校',
+  '教室',
+  '操场',
+  '小鸟',
+  '小草',
+  '花朵',
+  '花草',
+  '荷花',
+  '梅花',
+  '桃花',
+  '菊花',
+  '剪刀',
+  '剪纸',
+  '问好',
+  '问题',
+  '铅笔',
+  '橡皮',
+  '本子',
+  '书包',
+  '太阳',
+  '月亮',
+  '星星',
+  '白云',
+  '下雨',
+  '下雪',
+  '春天',
+  '夏天',
+  '秋天',
+  '冬天',
+  '初春',
+  '六月',
+  '七月',
+  '八月',
+  '九月',
+  '十月',
+  '非常',
+  '真好',
+  '好看',
+  '开心',
+  '快乐',
+  '好吃',
+  '一个',
+  '这个',
+  '那个',
+  '什么',
+  '怎么',
+  '可以',
+  '不要',
+  '没有',
+  '还有',
+  '已经',
+  '正在',
+  '许多',
+  '一些',
+  '自己',
+  '大家',
+  '因为',
+  '所以',
+  '但是',
+  '然后',
+  '如果',
+  '真的',
+  '好好',
+  '轻轻',
+  '慢慢',
+  '带到',
+  '带我',
+  '去玩',
+  '看书',
+  '写字',
+  '爱护',
+  '保护',
+  '帮助',
+  '照顾',
+  '休息',
+  '生病',
+  '找到',
+  '丢失',
+  '劳动',
+  '功课',
+  '词语',
+  '故事',
+  '国王',
+  '马路',
+  '泥土',
+  '土地',
+  '班级',
+  '名字',
+  '枯死',
+  '叶子',
+  '探出',
+]
+
+function stripSentencePunct(s) {
+  return String(s || '').replace(/[。！？，、；：""''「」『』（）()《》\s]/g, '')
+}
+
+/** Split a sentence into clickable word chunks for 点词组句. */
+function splitSentenceParts(sentence, hintWords = []) {
+  const text = stripSentencePunct(sentence)
+  if (!text) return []
+  const dict = [...new Set([...(hintWords || []), ...SEGMENT_DICT])]
+    .filter((w) => w && w.length >= 2 && [...w].every((c) => isHan(c)))
+    .sort((a, b) => b.length - a.length || a.localeCompare(b, 'zh'))
+  const known = new Set(dict)
+  const chars = [...text]
+  const parts = []
+  let i = 0
+  while (i < chars.length) {
+    let matched = null
+    for (const w of dict) {
+      const wChars = [...w]
+      if (i + wChars.length > chars.length) continue
+      if (chars.slice(i, i + wChars.length).join('') === w) {
+        matched = w
+        break
+      }
+    }
+    if (matched) {
+      parts.push(matched)
+      i += [...matched].length
+      continue
+    }
+    // Only glue 2 leftover chars when that bigram is a known word
+    if (i + 1 < chars.length) {
+      const two = chars[i] + chars[i + 1]
+      if (known.has(two)) {
+        parts.push(two)
+        i += 2
+        continue
+      }
+    }
+    parts.push(chars[i])
+    i += 1
+  }
+  // Merge lonely singles into neighbors so chips stay kid-friendly (2–4 parts ideal)
+  const merged = []
+  for (const p of parts) {
+    if (
+      p.length === 1 &&
+      merged.length &&
+      merged[merged.length - 1].length === 1 &&
+      merged[merged.length - 1].length + 1 <= 2
+    ) {
+      merged[merged.length - 1] += p
+    } else {
+      merged.push(p)
+    }
+  }
+  if (merged.length < 2 && text.length >= 2) {
+    const mid = Math.ceil(chars.length / 2)
+    return [chars.slice(0, mid).join(''), chars.slice(mid).join('')]
+  }
+  // If too many tiny chips, pair adjacent singles/short pieces
+  if (merged.length > 6) {
+    const compact = []
+    for (let k = 0; k < merged.length; k++) {
+      if (k + 1 < merged.length && merged[k].length + merged[k + 1].length <= 3) {
+        compact.push(merged[k] + merged[k + 1])
+        k += 1
+      } else {
+        compact.push(merged[k])
+      }
+    }
+    return compact.length >= 2 ? compact : merged
+  }
+  return merged
+}
+
+function makeAssemblyState(item) {
+  const sentence = (item?.sentences || [])[0] || ''
+  const answer = splitSentenceParts(sentence, item?.words || [])
+  const pool = shuffle(answer.map((text, i) => ({ id: `${i}-${text}`, text })))
+  return {
+    sentence,
+    answer,
+    pool,
+    picked: [],
+    status: 'play', // play | correct | wrong
+  }
+}
+
 const state = {
   view: 'home', // home | exam | history | historyDetail
   homeTerm: '一上',
@@ -33,6 +283,7 @@ const state = {
   examItems: [],
   examIndex: 0,
   examAudios: {}, // index -> dataUrl
+  examAssembly: null, // 点词组句 state for current exam item
   historyId: null,
   historyItems: [],
   historyIndex: 0,
@@ -109,12 +360,62 @@ function withPinyin(text, enabled) {
   return out
 }
 
-function renderCharCard(item, { showPinyin = false } = {}) {
+function renderAssemblyBlock(assembly, { showPinyin = false } = {}) {
+  if (!assembly?.answer?.length) {
+    return `<div class="section-block"><h3>造句</h3><div class="empty-inline">暂无造句</div></div>`
+  }
+  const pickedHtml = assembly.picked.length
+    ? assembly.picked
+        .map(
+          (p, idx) =>
+            `<button type="button" class="chip chip-pick assembled" data-action="assemble-unpick" data-idx="${idx}">${withPinyin(p.text, showPinyin)}</button>`
+        )
+        .join('')
+    : '<span class="assemble-placeholder">按顺序点选词语组成句子</span>'
+  const poolHtml = assembly.pool.length
+    ? assembly.pool
+        .map(
+          (p) =>
+            `<button type="button" class="chip chip-pick" data-action="assemble-pick" data-id="${escapeHtml(p.id)}">${withPinyin(p.text, showPinyin)}</button>`
+        )
+        .join('')
+    : ''
+  let feedback = ''
+  if (assembly.status === 'correct') {
+    feedback = `<div class="assemble-feedback ok">组对了！${withPinyin(assembly.sentence, showPinyin)}</div>`
+  } else if (assembly.status === 'wrong') {
+    feedback = `<div class="assemble-feedback bad">再试一次，可以点上面的词撤回</div>`
+  }
+  return `
+    <div class="section-block assemble-block">
+      <h3>造句 · 点词组句</h3>
+      <div class="assemble-board" aria-label="已选词语">${pickedHtml}</div>
+      <div class="assemble-pool chips" aria-label="待选词语">${poolHtml}</div>
+      <div class="assemble-actions">
+        <button type="button" class="btn ghost small" data-action="assemble-reset">重来</button>
+        <button type="button" class="btn small" data-action="assemble-check" ${assembly.picked.length !== assembly.answer.length ? 'disabled' : ''}>检查</button>
+      </div>
+      ${feedback}
+    </div>
+  `
+}
+
+function renderCharCard(item, { showPinyin = false, assembly = null } = {}) {
   const words = (item.words || []).slice(0, 5)
   const sentences = (item.sentences || []).slice(0, 3)
   const glyph = showPinyin
     ? `<div class="char-glyph char-glyph-py" aria-label="汉字">${withPinyinChar(item.char, true)}</div>`
     : `<div class="char-glyph" aria-label="汉字">${escapeHtml(item.char)}</div>`
+  const sentenceBlock = assembly
+    ? renderAssemblyBlock(assembly, { showPinyin })
+    : sentences.length
+      ? `<div class="section-block">
+        <h3>造句</h3>
+        <div class="sentences">
+          ${sentences.map((s) => `<div class="sentence">${withPinyin(s, showPinyin)}</div>`).join('')}
+        </div>
+      </div>`
+      : ''
   return `
     <div class="char-stage ${showPinyin ? 'show-pinyin' : ''}">
       ${glyph}
@@ -127,16 +428,7 @@ function renderCharCard(item, { showPinyin = false } = {}) {
           }
         </div>
       </div>
-      ${
-        sentences.length
-          ? `<div class="section-block">
-        <h3>造句</h3>
-        <div class="sentences">
-          ${sentences.map((s) => `<div class="sentence">${withPinyin(s, showPinyin)}</div>`).join('')}
-        </div>
-      </div>`
-          : ''
-      }
+      ${sentenceBlock}
     </div>
   `
 }
@@ -194,12 +486,39 @@ function renderHome() {
   bindCommon()
 }
 
-function startExam(term) {
+function remainingForTerm(term) {
   const pool = byTerm(term)
+  const practiced = loadPracticed(term)
+  const left = pool.filter((c) => !practiced.has(c.char))
+  return { pool, practiced, left }
+}
+
+function ensureExamAssembly() {
+  const item = state.examItems[state.examIndex]
+  if (!item) {
+    state.examAssembly = null
+    return
+  }
+  if (!state.examAssembly || state.examAssembly._char !== item.char) {
+    state.examAssembly = { ...makeAssemblyState(item), _char: item.char }
+  }
+}
+
+function startExam(term) {
+  const { pool, left } = remainingForTerm(term)
+  let candidates = left
+  if (!candidates.length) {
+    // 本册字都练过了，重新洗牌开始新一轮
+    savePracticed(term, new Set())
+    candidates = pool
+    toast('本册字已全部练过，开始新一轮')
+  }
   state.examTerm = term
-  state.examItems = shuffle(pool).slice(0, Math.min(EXAM_SIZE, pool.length))
+  state.examItems = shuffle(candidates).slice(0, Math.min(EXAM_SIZE, candidates.length))
   state.examIndex = 0
   state.examAudios = {}
+  state.examAssembly = null
+  ensureExamAssembly()
 }
 
 async function finishExam() {
@@ -225,34 +544,53 @@ async function finishExam() {
     })),
   }
   await saveExam(exam)
+
+  // 记录本轮练过的字；若本册已全部练完，下次会自动重新随机
+  if (state.examTerm) {
+    const practiced = loadPracticed(state.examTerm)
+    for (const item of state.examItems) practiced.add(item.char)
+    const poolSize = byTerm(state.examTerm).length
+    if (practiced.size >= poolSize) {
+      savePracticed(state.examTerm, new Set())
+    } else {
+      savePracticed(state.examTerm, practiced)
+    }
+  }
+
   state.examTerm = null
   state.examItems = []
   state.examIndex = 0
   state.examAudios = {}
+  state.examAssembly = null
   toast('练习已保存到历史记录')
   state.view = 'history'
   render()
 }
 
 function renderExamPick() {
-  const countShang = byTerm('一上').length
-  const countXia = byTerm('一下').length
+  const shang = remainingForTerm('一上')
+  const xia = remainingForTerm('一下')
+  const tipLeft = (info) => {
+    if (!info.practiced.size) return `共 ${info.pool.length} 字 · 新一轮`
+    if (!info.left.length) return `共 ${info.pool.length} 字 · 已练完，将重新随机`
+    return `还剩 ${info.left.length}/${info.pool.length} 字未练`
+  }
   const html = `
     <section class="panel">
       <div class="panel-head">
         <h2>练习</h2>
-        <div class="meta">随机 ${EXAM_SIZE} 个字 · 不评分</div>
+        <div class="meta">每次最多 ${EXAM_SIZE} 字 · 点词组句</div>
       </div>
       <div class="exam-pick">
-        <p class="exam-pick-tip">请先选择要练习的册次</p>
+        <p class="exam-pick-tip">请先选择要练习的册次（已练过的字本轮不会再出现）</p>
         <div class="exam-pick-cards">
           <button type="button" class="exam-pick-card" data-action="exam-start" data-term="一上">
             <strong>一上</strong>
-            <span>共 ${countShang} 字</span>
+            <span>${tipLeft(shang)}</span>
           </button>
           <button type="button" class="exam-pick-card" data-action="exam-start" data-term="一下">
             <strong>一下</strong>
-            <span>共 ${countXia} 字</span>
+            <span>${tipLeft(xia)}</span>
           </button>
         </div>
       </div>
@@ -267,6 +605,7 @@ function renderExam() {
     renderExamPick()
     return
   }
+  ensureExamAssembly()
   const item = state.examItems[state.examIndex]
   const hasAudio = Boolean(state.examAudios[state.examIndex])
   const isLast = state.examIndex >= state.examItems.length - 1
@@ -276,7 +615,7 @@ function renderExam() {
         <h2>练习 · ${state.examTerm}</h2>
         <div class="meta">${state.examIndex + 1}/${state.examItems.length}</div>
       </div>
-      ${renderCharCard(item)}
+      ${renderCharCard(item, { assembly: state.examAssembly })}
       <div class="exam-footer">
         <div class="rec-actions">
           ${state.recording ? '<span class="rec-dot" aria-hidden="true"></span><span class="meta">录音中</span>' : ''}
@@ -386,6 +725,7 @@ function bindCommon() {
         state.examItems = []
         state.examIndex = 0
         state.examAudios = {}
+        state.examAssembly = null
       }
       state.view = next
       render()
@@ -436,16 +776,68 @@ async function onAction(e) {
       break
     }
     case 'exam-prev':
-      if (state.examIndex > 0) state.examIndex -= 1
+      if (state.examIndex > 0) {
+        state.examIndex -= 1
+        state.examAssembly = null
+      }
       renderExam()
       break
     case 'exam-next':
-      if (state.examIndex < state.examItems.length - 1) state.examIndex += 1
+      if (state.examIndex < state.examItems.length - 1) {
+        state.examIndex += 1
+        state.examAssembly = null
+      }
       renderExam()
       break
     case 'exam-finish':
       await finishExam()
       break
+    case 'assemble-pick': {
+      if (!state.examAssembly || state.examAssembly.status === 'correct') break
+      const id = e.currentTarget.dataset.id
+      const idx = state.examAssembly.pool.findIndex((p) => p.id === id)
+      if (idx < 0) break
+      const [piece] = state.examAssembly.pool.splice(idx, 1)
+      state.examAssembly.picked.push(piece)
+      state.examAssembly.status = 'play'
+      // 选满后自动检查
+      if (state.examAssembly.picked.length === state.examAssembly.answer.length) {
+        const ok = state.examAssembly.picked.every(
+          (p, i) => p.text === state.examAssembly.answer[i]
+        )
+        state.examAssembly.status = ok ? 'correct' : 'wrong'
+        if (ok) toast('组对了！')
+      }
+      renderExam()
+      break
+    }
+    case 'assemble-unpick': {
+      if (!state.examAssembly || state.examAssembly.status === 'correct') break
+      const idx = Number(e.currentTarget.dataset.idx)
+      if (!Number.isInteger(idx) || idx < 0 || idx >= state.examAssembly.picked.length) break
+      const [piece] = state.examAssembly.picked.splice(idx, 1)
+      state.examAssembly.pool.push(piece)
+      state.examAssembly.status = 'play'
+      renderExam()
+      break
+    }
+    case 'assemble-reset': {
+      if (!state.examAssembly) break
+      const item = state.examItems[state.examIndex]
+      state.examAssembly = { ...makeAssemblyState(item), _char: item.char }
+      renderExam()
+      break
+    }
+    case 'assemble-check': {
+      if (!state.examAssembly) break
+      const ok =
+        state.examAssembly.picked.length === state.examAssembly.answer.length &&
+        state.examAssembly.picked.every((p, i) => p.text === state.examAssembly.answer[i])
+      state.examAssembly.status = ok ? 'correct' : 'wrong'
+      toast(ok ? '组对了！' : '还不对，再试试')
+      renderExam()
+      break
+    }
     case 'exam-start-rec':
       try {
         await recorder.start()

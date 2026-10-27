@@ -420,6 +420,84 @@ a {
   color: var(--ink);
 }
 
+.assemble-block {
+  width: 100%;
+  max-width: 520px;
+}
+
+.assemble-board {
+  min-height: 52px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #f8fbf9;
+  border: 1px dashed #cfe0d6;
+  border-radius: 12px;
+}
+
+.assemble-placeholder {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.assemble-pool {
+  margin-bottom: 10px;
+}
+
+.chip-pick {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.chip-pick:hover {
+  transform: translateY(-1px);
+  border-color: var(--brand);
+}
+
+.chip-pick.assembled {
+  background: #e7f6ee;
+  border-color: #9dceb4;
+}
+
+.assemble-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.btn.small {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+.assemble-feedback {
+  text-align: center;
+  font-size: 0.95rem;
+  padding: 6px 4px 0;
+}
+
+.assemble-feedback.ok {
+  color: var(--brand-dark);
+  font-weight: 600;
+}
+
+.assemble-feedback.bad {
+  color: var(--danger);
+}
+
+.empty-inline {
+  color: var(--muted);
+  text-align: center;
+  padding: 8px;
+}
+
 .pager {
   position: absolute;
   right: 24px;
