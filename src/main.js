@@ -401,6 +401,7 @@ const state = {
   homeTerm: '一上',
   homeOrder: makeHomeOrder('一上'),
   homeIndex: 0,
+  homePickerOpen: false,
   showPinyin: loadShowPinyin(),
   examTerm: null, // null = pick 一上/一下 first
   examItems: [],
@@ -581,6 +582,44 @@ function shell(content) {
   `
 }
 
+function renderHomePicker() {
+  const total = state.homeOrder.length
+  if (!total) {
+    return `
+      <div class="char-picker" role="dialog" aria-modal="true" aria-label="选择汉字">
+        <div class="char-picker-panel">
+          <div class="char-picker-head">
+            <h3>选择汉字</h3>
+            <button type="button" class="btn ghost small" data-action="home-picker-close">关闭</button>
+          </div>
+          <div class="empty">该册暂无汉字</div>
+        </div>
+      </div>
+    `
+  }
+  const cells = state.homeOrder
+    .map((item, i) => {
+      const active = i === state.homeIndex
+      return `<button type="button" class="char-picker-cell ${active ? 'active' : ''}" data-action="home-jump" data-index="${i}" aria-current="${active ? 'true' : 'false'}">${escapeHtml(item.char)}</button>`
+    })
+    .join('')
+  return `
+    <div class="char-picker" role="dialog" aria-modal="true" aria-label="选择汉字">
+      <button type="button" class="char-picker-backdrop" data-action="home-picker-close" aria-label="关闭"></button>
+      <div class="char-picker-panel">
+        <div class="char-picker-head">
+          <div>
+            <h3>选择汉字 · ${escapeHtml(state.homeTerm)}</h3>
+            <p class="meta">共 ${total} 字，点选可跳转</p>
+          </div>
+          <button type="button" class="btn ghost small" data-action="home-picker-close">关闭</button>
+        </div>
+        <div class="char-picker-grid">${cells}</div>
+      </div>
+    </div>
+  `
+}
+
 function renderHome() {
   const item = currentHomeChar()
   const total = state.homeOrder.length
@@ -589,7 +628,9 @@ function renderHome() {
       <div class="panel-head home-head">
         <div class="head-left">
           <h2>主页认字</h2>
-          <span class="meta">${total ? state.homeIndex + 1 : 0}/${total}</span>
+          <button type="button" class="progress-btn meta" data-action="home-picker-open" title="点击选择汉字" ${total ? '' : 'disabled'}>
+            ${total ? state.homeIndex + 1 : 0}/${total}
+          </button>
         </div>
         <div class="home-toolbar">
           <div class="term-tabs" role="tablist" aria-label="册次">
@@ -608,10 +649,15 @@ function renderHome() {
         <button class="btn ghost" data-action="home-prev" ${state.homeIndex === 0 || !total ? 'disabled' : ''}>上一个</button>
         <button class="btn" data-action="home-next" ${state.homeIndex >= total - 1 || !total ? 'disabled' : ''}>下一个</button>
       </div>
+      ${state.homePickerOpen ? renderHomePicker() : ''}
     </section>
   `
   document.querySelector('#app').innerHTML = shell(html)
   bindCommon()
+  if (state.homePickerOpen) {
+    const active = document.querySelector('.char-picker-cell.active')
+    if (active) active.scrollIntoView({ block: 'center', inline: 'nearest' })
+  }
 }
 
 function remainingForTerm(term) {
@@ -761,11 +807,20 @@ function renderExam() {
   const isLast = state.examIndex >= state.examItems.length - 1
   const html = `
     <section class="panel">
-      <div class="panel-head">
-        <h2>练习 · ${state.examTerm}</h2>
-        <div class="meta">${state.examIndex + 1}/${state.examItems.length}</div>
+      <div class="panel-head home-head">
+        <div class="head-left">
+          <h2>练习 · ${state.examTerm}</h2>
+          <span class="meta">${state.examIndex + 1}/${state.examItems.length}</span>
+        </div>
+        <div class="home-toolbar">
+          <label class="pinyin-switch">
+            <input type="checkbox" data-action="toggle-pinyin" ${state.showPinyin ? 'checked' : ''} />
+            <span class="switch-ui" aria-hidden="true"></span>
+            <span>拼音</span>
+          </label>
+        </div>
       </div>
-      ${renderCharCard(item, { assembly: state.examAssembly })}
+      ${renderCharCard(item, { showPinyin: state.showPinyin, assembly: state.examAssembly })}
       <div class="exam-footer">
         <div class="rec-actions">
           ${state.recording ? '<span class="rec-dot" aria-hidden="true"></span><span class="meta">录音中</span>' : ''}
@@ -878,6 +933,7 @@ function bindCommon() {
         state.recording = false
       }
       const next = btn.dataset.nav
+      state.homePickerOpen = false
       if (next === 'exam') {
         state.examTerm = null
         state.examItems = []
@@ -906,6 +962,7 @@ async function onAction(e) {
       state.homeTerm = term
       state.homeOrder = makeHomeOrder(term)
       state.homeIndex = 0
+      state.homePickerOpen = false
       renderHome()
       break
     }
@@ -916,17 +973,35 @@ async function onAction(e) {
       } catch {
         /* ignore */
       }
-      renderHome()
+      render()
       break
     }
     case 'home-prev':
       if (state.homeIndex > 0) state.homeIndex -= 1
+      state.homePickerOpen = false
       renderHome()
       break
     case 'home-next':
       if (state.homeIndex < state.homeOrder.length - 1) state.homeIndex += 1
+      state.homePickerOpen = false
       renderHome()
       break
+    case 'home-picker-open':
+      state.homePickerOpen = true
+      renderHome()
+      break
+    case 'home-picker-close':
+      state.homePickerOpen = false
+      renderHome()
+      break
+    case 'home-jump': {
+      const idx = Number(e.currentTarget.dataset.index)
+      if (!Number.isInteger(idx) || idx < 0 || idx >= state.homeOrder.length) break
+      state.homeIndex = idx
+      state.homePickerOpen = false
+      renderHome()
+      break
+    }
     case 'exam-start': {
       const term = e.currentTarget.dataset.term
       if (term !== '一上' && term !== '一下') break
